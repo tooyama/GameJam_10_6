@@ -29,7 +29,7 @@ struct Bullet
     {
         if(alive)
         {
-            Shape2D::NStar(8, size, size*0.5, pos).draw(color);
+            Shape2D::NStar(6, size, size*0.5, pos).draw(color);
         }
     }
     
@@ -83,7 +83,7 @@ struct SmallVirus
     {
         if(alive)
         {
-            Shape2D::NStar(8, size, size*0.5, pos).drawFrame(10, color);
+            Shape2D::NStar(6, size, size*0.5, pos).drawFrame(10, color);
         }
     }
     
@@ -120,7 +120,7 @@ struct Virus
         {
             int32 pCount=0;
             int32 anotherPCount=0;
-            for(int i=playerCounts.size()-8; i<playerCounts.size(); ++i)
+            for(int i=playerCounts.size()-6; i<playerCounts.size(); ++i)
             {
                 if(playerCount == playerCounts[i])
                 {
@@ -166,13 +166,13 @@ struct Virus
     {
         if(alive)
         {
-            Shape2D::NStar(8, size, size*0.5, pos).drawFrame(size*0.2, color);
+            Shape2D::NStar(6, size, size*0.5, pos).drawFrame(size*0.2, color);
             
             for (int i=0; i<bulletColors.size(); ++i )
             {
-                const Vec2 _pos = OffsetCircular(pos, size*1.2, i * 45_deg);
+                const Vec2 _pos = OffsetCircular(pos, size*1.2, i * 60_deg);
 
-                Shape2D::NStar(8, size*0.4, size*0.2, _pos).draw(bulletColors[i]);
+                Shape2D::NStar(6, size*0.4, size*0.2, _pos).draw(bulletColors[i]);
             }
         }
     }
@@ -193,22 +193,29 @@ void Main()
     Window::Resize(1280, 720);
     Graphics::SetBackground(Palette::Whitesmoke);
     
+    Font font(100,Typeface::Bold);
+    
+    const float maxTime = 45000;
+    Stopwatch gameTimer;
+    
+    bool start = false;
+    bool end = false;
+    
     const float size = 30;
     const float virusSize = 40;
     const float speed = 5;
     const float bulletSize = 20;
     const Array<ColorF> colors = {ColorF(1.0,0.2,0.2,0.8), ColorF(0.2,0.2,1.0,0.8)};
     
+    Array<double> rad = {0,0};
+    Array<double> deg = {0,0};
     Array<Vec2> poses = {Window::Center()-Vec2(100,0), Window::Center()+Vec2(100,0)};
     Array<Stopwatch> coolTimes = {Stopwatch(), Stopwatch()};
     Array<Array<Bullet>> bullets = {Array<Bullet>(), Array<Bullet>()};
     Array<Array<Virus>> viruses = {Array<Virus>(), Array<Virus>()};
     Array<Array<SmallVirus>> smallViruses = {Array<SmallVirus>(), Array<SmallVirus>()};
     
-    for(auto i : step(2))
-    {
-        coolTimes[i].start();
-    }
+    const Texture texture(U"images/kakusai.png");
     
     for(auto i : step(2))
     {
@@ -218,16 +225,36 @@ void Main()
     
     while (System::Update())
     {
-        for(auto& bullet : bullets[0])
+        if(!start && Gamepad(0) && Gamepad(0).buttons[5].down())
         {
-            for(auto& anotherBullet : bullets[1])
+            start = true;
+            
+            gameTimer.start();
+            
+            for(auto i : step(2))
             {
-                if(Circle(bullet.pos,bullet.size).intersects(Circle(anotherBullet.pos,anotherBullet.size)))
+                coolTimes[i].start();
+            }
+        }
+        
+        if(maxTime < gameTimer.msF())
+        {
+            end = true;
+        }
+        
+        if(start && !end)
+        {
+            for(auto& bullet : bullets[0])
+            {
+                for(auto& anotherBullet : bullets[1])
                 {
-                    if(bullet.alive && anotherBullet.alive)
+                    if(Circle(bullet.pos,bullet.size).intersects(Circle(anotherBullet.pos,anotherBullet.size)))
                     {
-                        bullet.dead();
-                        anotherBullet.dead();
+                        if(bullet.alive && anotherBullet.alive)
+                        {
+                            bullet.dead();
+                            anotherBullet.dead();
+                        }
                     }
                 }
             }
@@ -235,79 +262,91 @@ void Main()
 
         for(auto i : step(2))
         {
-            for(auto& virus :viruses[i])
+            if(start && !end)
             {
-                if(virus.alive && Circle(poses[i],size).intersects(Circle(virus.pos,virus.size)))
+                for(auto& virus :viruses[i])
                 {
-                    poses[i].moveBy((poses[i]-virus.pos)*0.1);
-                }
-                
-                for(auto j : step(2))
-                {
-                    for(auto& smallVirus : smallViruses[j])
+                    if(virus.alive && Circle(poses[i],size).intersects(Circle(virus.pos,virus.size)))
                     {
-                        if(virus.alive && Circle(smallVirus.pos, smallVirus.size).intersects(Circle(virus.pos,virus.size)))
+                        poses[i].moveBy((poses[i]-virus.pos)*0.1);
+                    }
+                    
+                    for(auto j : step(2))
+                    {
+                        for(auto& smallVirus : smallViruses[j])
                         {
-                            smallVirus.pos.moveBy((smallVirus.pos-virus.pos)*0.1);
+                            if(virus.alive && Circle(smallVirus.pos, smallVirus.size).intersects(Circle(virus.pos,virus.size)))
+                            {
+                                smallVirus.pos.moveBy((smallVirus.pos-virus.pos)*0.1);
+                            }
                         }
                     }
                 }
-            }
-            
-            double rad = 0;
-            double deg = 0;
-            
-            if (const auto gamepad = Gamepad(i))
-            {
-                Vec2 moveRange(gamepad.axes[2],gamepad.axes[1]);
-                rad = Math::Atan2(moveRange.x,-moveRange.y);
-                poses[i].moveBy(moveRange*speed);
-                deg = rad* 180.0/Math::Pi;
                 
-                if(gamepad.buttons[5].pressed() && 200 < coolTimes[i].ms())
+                for(auto& bullet : bullets[i])
                 {
-                    coolTimes[i].restart();
-                    bullets[i].push_back(Bullet(poses[i] + Circular(size*0.7, deg*1.0_deg),rad,bulletSize,colors[i],i));
-                }
-            }
-            
-            for(auto& bullet : bullets[i])
-            {
-                for(auto j : step(2))
-                {
-                    for(auto& virus : viruses[j])
+                    for(auto j : step(2))
                     {
-                        if(Circle(bullet.pos,bullet.size).intersects(Circle(virus.pos,virus.size)))
+                        for(auto& virus : viruses[j])
                         {
-                            if(bullet.alive && virus.alive)
+                            if(Circle(bullet.pos,bullet.size).intersects(Circle(virus.pos,virus.size)))
                             {
-                                bullet.dead();
-                                virus.setBullet(bullet);
+                                if(bullet.alive && virus.alive)
+                                {
+                                    bullet.dead();
+                                    virus.setBullet(bullet);
+                                }
                             }
                         }
                     }
                 }
             }
         
-            for(auto& bullet : bullets[i])
+            if(start && !end)
             {
-                bullet.update();
+                if (const auto gamepad = Gamepad(i))
+                {
+                    if(0.1 < Math::Abs(gamepad.axes[1]) || 0.1 < Math::Abs(gamepad.axes[2]))
+                    {
+                        Vec2 moveRange(gamepad.axes[2],gamepad.axes[1]);
+                        rad[i] = Math::Atan2(moveRange.x,-moveRange.y);
+                        poses[i].moveBy(moveRange*speed);
+                        deg[i] = rad[i]* 180.0/Math::Pi;
+                    }
+                    
+                    if(gamepad.buttons[5].pressed() && 200 < coolTimes[i].ms())
+                    {
+                        coolTimes[i].restart();
+                        bullets[i].push_back(Bullet(poses[i] + Circular(size*0.7, deg[i]*1.0_deg),rad[i],bulletSize,colors[i],i));
+                    }
+                }
             }
-
+            
+            if(start && !end)
+            {
+                for(auto& bullet : bullets[i])
+                {
+                    bullet.update();
+                }
+            }
+            
             for(const auto& bullet : bullets[i])
             {
                 bullet.draw();
             }
             
-            for(auto& smallVirus :smallViruses[i])
+            if(start && !end)
             {
-                if(smallVirus.alive && 5000 < smallVirus.stopWatch.ms())
+                for(auto& smallVirus :smallViruses[i])
                 {
-                    smallVirus.alive = false;
-                    viruses[i].push_back(Virus(smallVirus.pos, virusSize, smallVirus.color, smallVirus.playerCount));
+                    if(smallVirus.alive && 5000 < smallVirus.stopWatch.ms())
+                    {
+                        smallVirus.alive = false;
+                        viruses[i].push_back(Virus(smallVirus.pos, virusSize, smallVirus.color, smallVirus.playerCount));
+                    }
+                    
+                    smallVirus.update();
                 }
-                
-                smallVirus.update();
             }
             
             for(const auto& smallVirus : smallViruses[i])
@@ -315,20 +354,23 @@ void Main()
                 smallVirus.draw();
             }
             
-            for(auto& virus :viruses[i])
+            if(start && !end)
             {
-                if(virus.alive && virus.maxSize <= virus.size)
+                for(auto& virus :viruses[i])
                 {
-                    int32 virusCount = virus.dead();
-                    for(auto k : step(virusCount))
+                    if(virus.alive && virus.maxSize <= virus.size)
                     {
-                        smallViruses[i].push_back(SmallVirus(virus.pos, Random(0,360)*1_deg+k*120_deg, bulletSize, virus.color, virus.playerCount));
+                        int32 virusCount = virus.dead();
+                        for(auto k : step(virusCount))
+                        {
+                            smallViruses[i].push_back(SmallVirus(virus.pos, Random(0,360)*1_deg+k*120_deg, bulletSize, virus.color, virus.playerCount));
+                        }
                     }
+                    
+                    virus.update();
                 }
-                
-                virus.update();
             }
-            
+                
             for(const auto& virus : viruses[i])
             {
                 virus.draw();
@@ -336,14 +378,32 @@ void Main()
 
             Circle(poses[i],size*0.4).drawFrame(5,0,colors[i]);
             Circle(poses[i],size).drawFrame(0,5,colors[i]);
-            Shape2D::NStar(10, bulletSize, bulletSize*0.5, poses[i] + Circular(size*0.7, deg*1.0_deg)).draw(colors[i]);
+            Shape2D::NStar(6, bulletSize, bulletSize*0.5, poses[i] + Circular(size*0.7, deg[i]*1.0_deg)).draw(colors[i]);
             
             Rect(20,50,Window::Width()*((double)viruses[0].size()/(viruses[0].size()+viruses[1].size()))-20,120).draw(colors[0]);
             Rect(Window::Width()*((double)viruses[0].size()/(viruses[0].size()+viruses[1].size())),50,Window::Width()*((double)viruses[1].size()/(viruses[0].size()+viruses[1].size()))-20,120).draw(colors[1]);
             RoundRect(20, 50, Window::Width()-40, 120, 10).drawFrame(20,Palette::Gray);
             
             Circle(Vec2(Window::Width()/2,60),60).draw();
+            Circle(Vec2(Window::Width()/2,60),60).drawPie(0, gameTimer.msF()/maxTime*360_deg, Palette::Skyblue);
             Circle(Vec2(Window::Width()/2,60),60).drawFrame(10,0,Palette::Gray);
+            
+            if(!start)
+            {
+                texture.scaled(2.0).drawAt(Window::Center());
+            }
+            
+            if(end)
+            {
+                if(viruses[0].size() < viruses[1].size())
+                {
+                    font(U"Player 2 Win !").drawAt(Window::Center(),Palette::Gray);
+                }
+                else
+                {
+                    font(U"Player 1 Win !").drawAt(Window::Center(),Palette::Gray);
+                }
+            }
         }
     }
 }
