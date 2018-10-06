@@ -11,6 +11,11 @@ struct Bullet
         moveSpeed = Vec2(speed*Math::Sin(rad),-speed*Math::Cos(rad));
     }
     
+    void dead()
+    {
+        
+    }
+    
     void update()
     {
         if(pos.x < 0 || Window::Width() < pos.x)
@@ -36,7 +41,8 @@ struct Bullet
     const ColorF color;
     const float rad;
     const float size;
-    float speed=10.0;
+    const float speed=10.0;
+    bool isAlive = true;
 };
 
 struct Virus
@@ -71,65 +77,90 @@ void Main()
     Window::Resize(1280, 720);
     Graphics::SetBackground(Palette::Whitesmoke);
     
-    const float size = 50;
+    const float size = 30;
+    const float virusSize = 50;
     const float speed = 5;
     const float bulletSize = 20;
-    const ColorF p1Color(ColorF(1.0,0.2,0.2));
+    const Array<ColorF> colors = {ColorF(1.0,0.2,0.2), ColorF(0.2,0.2,1.0)};
     
-    Vec2 p1Pos(Window::Center());
+    Array<Vec2> poses = {Window::Center()-Vec2(100,0), Window::Center()+Vec2(100,0)};
+    Array<Stopwatch> coolTimes = {Stopwatch(), Stopwatch()};
+    Array<Array<Bullet>> bullets = {Array<Bullet>(), Array<Bullet>()};
+    Array<Array<Virus>> viruses = {Array<Virus>(), Array<Virus>()};
     
-    Array<Bullet> p1Bullets;
-    Array<Virus> p1Viruses;
-    Stopwatch p1CoolTime;
+    for(auto i : step(2))
+    {
+        coolTimes[i].start();
+    }
     
-    p1CoolTime.start();
+    for(auto i : step(3))
+    {
+        viruses[0].push_back(Virus(Vec2(100,100+i*200), virusSize, colors[0]));
+        viruses[1].push_back(Virus(Vec2(Window::Width()-100,100+i*200), virusSize, colors[1]));
+    }
     
     while (System::Update())
     {
         double rad = 0;
         double deg = 0;
         
-        if (const auto gamepad = Gamepad(0))
+        for(auto i : step(2))
         {
-            Vec2 moveRange(gamepad.axes[2],gamepad.axes[1]);
-            rad = Math::Atan2(moveRange.x,-moveRange.y);
-            p1Pos.moveBy(moveRange*speed);
-            deg = rad* 180.0/Math::Pi;
-            
-            if(gamepad.buttons[5].pressed() && 100 < p1CoolTime.ms())
+            for(auto& virus :viruses[0])
             {
-                p1CoolTime.restart();
-                p1Bullets.push_back(Bullet(p1Pos + Circular(size*0.7, deg*1.0_deg),rad,bulletSize,p1Color));
+                if(Circle(poses[i],size).intersects(Circle(virus.pos,virus.size)))
+                {
+                    poses[i].moveBy((poses[i]-virus.pos)*0.1);
+                }
             }
             
-            if(gamepad.buttons[4].down())
+            for(auto& virus :viruses[1])
             {
-                p1Viruses.push_back(Virus(p1Pos, size, p1Color));
+                if(Circle(poses[i],size).intersects(Circle(virus.pos,virus.size)))
+                {
+                    poses[i].moveBy((poses[i]-virus.pos)*0.1);
+                }
             }
-        }
+            
+            if (const auto gamepad = Gamepad(i))
+            {
+                Vec2 moveRange(gamepad.axes[2],gamepad.axes[1]);
+                rad = Math::Atan2(moveRange.x,-moveRange.y);
+                poses[i].moveBy(moveRange*speed);
+                deg = rad* 180.0/Math::Pi;
+                
+                if(gamepad.buttons[5].pressed() && 200 < coolTimes[i].ms())
+                {
+                    coolTimes[i].restart();
+                    bullets[i].push_back(Bullet(poses[i] + Circular(size*0.7, deg*1.0_deg),rad,bulletSize,colors[i]));
+                }
+            }
         
-        for(auto& p1Bullet : p1Bullets)
-        {
-            p1Bullet.update();
-        }
+            for(auto& bullet : bullets[i])
+            {
+                bullet.update();
+            }
 
-        for(const auto& p1Bullet : p1Bullets)
-        {
-            p1Bullet.draw();
+            for(const auto& bullet : bullets[i])
+            {
+                bullet.draw();
+            }
+
+            for(auto& virus :viruses[i])
+            {
+                virus.update();
+            }
+            
+            for(const auto& virus : viruses[i])
+            {
+                virus.draw();
+            }
+
+            Circle(poses[i],size*0.4).drawFrame(5,0,colors[i]);
+            Circle(poses[i],size).drawFrame(0,5,colors[i]);
+            Shape2D::NStar(12, bulletSize, bulletSize*0.5, poses[i] + Circular(size*0.7, deg*1.0_deg)).draw(colors[i]);
         }
         
-        for(auto& p1Virus : p1Viruses)
-        {
-            p1Virus.update();
-        }
         
-        for(const auto& p1Virus : p1Viruses)
-        {
-            p1Virus.draw();
-        }
-        
-        Circle(p1Pos,size*0.4).drawFrame(5,0,p1Color);
-        Circle(p1Pos,size).drawFrame(0,5,p1Color);
-        Shape2D::NStar(12, bulletSize, bulletSize*0.5, p1Pos + Circular(size*0.7, deg*1.0_deg)).draw(p1Color);
     }
 }
