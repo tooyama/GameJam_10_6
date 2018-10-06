@@ -215,7 +215,7 @@ void Main()
     Array<Array<Virus>> viruses = {Array<Virus>(), Array<Virus>()};
     Array<Array<SmallVirus>> smallViruses = {Array<SmallVirus>(), Array<SmallVirus>()};
     
-    const Texture texture(U"images/kakusai.png");
+    //const Texture texture(U"images/kakusai.png");
     
     for(auto i : step(2))
     {
@@ -388,10 +388,12 @@ void Main()
             Circle(Vec2(Window::Width()/2,60),60).drawPie(0, gameTimer.msF()/maxTime*360_deg, Palette::Skyblue);
             Circle(Vec2(Window::Width()/2,60),60).drawFrame(10,0,Palette::Gray);
             
+            /*
             if(!start)
             {
                 texture.scaled(2.0).drawAt(Window::Center());
             }
+            */
             
             if(end)
             {
